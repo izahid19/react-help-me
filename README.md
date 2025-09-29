@@ -41,8 +41,8 @@ npx react-help-me
 ```
 
 ```
-Welcome to React Help Me CLI
-Let's scaffold your React project quickly!
+⚡ React Help Me - Skip the Setup, Start Building!
+🔥 Your React project, configured perfectly, in under 60 seconds
 
 ? Enter project name: my-portfolio
 ? Which language do you want to use? TypeScript
@@ -168,7 +168,7 @@ We welcome contributions!
 
 ## License
 
-MIT © Zahid Mushtaq
+MIT © [Zahid Mushtaq](https://github.com/izahid19)
 
 ## Acknowledgments
 

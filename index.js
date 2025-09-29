@@ -125,6 +125,7 @@ const run = (cmd, cwd = process.cwd()) => {
       );
     }
 
+    
 
     // Step 8: Install CSS framework & write configs
     if (cssFramework === "Tailwind CSS") {
