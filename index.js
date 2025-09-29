@@ -26,6 +26,7 @@ const run = (cmd, cwd = process.cwd()) => {
         type: "input", 
         name: "projectName", 
         message: "Enter project name:",
+
         
         validate: (input) => {
           if (!input) return "Project name is required!";
