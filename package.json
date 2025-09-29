@@ -1,6 +1,6 @@
 {
   "name": "react-help-me",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A CLI tool to quickly scaffold React projects with various configurations",
   "type": "module",
   "bin": {
