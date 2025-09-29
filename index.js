@@ -26,6 +26,7 @@ const run = (cmd, cwd = process.cwd()) => {
         type: "input", 
         name: "projectName", 
         message: "Enter project name:",
+        
         validate: (input) => {
           if (!input) return "Project name is required!";
           if (input.match(/[^a-zA-Z0-9-_]/)) return "Project name should only contain letters, numbers, hyphens, and underscores";

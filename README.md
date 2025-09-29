@@ -37,7 +37,7 @@ When you run `npx react-help-me`, you will be prompted to:
 ## Example Walkthrough
 
 ```bash
-npx react-help-me
+npx react-help-me@latest
 ```
 
 ```
