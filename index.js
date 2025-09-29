@@ -13,7 +13,8 @@ const run = (cmd, cwd = process.cwd()) => {
 
 (async () => {
   try {
-    console.log("🚀 Welcome to My Create App CLI\n");
+    console.log("⚡ React Help Me - Skip the Setup, Start Building!");
+    console.log("🔥 Your React project, configured perfectly, in under 60 seconds\n");
 
 
     // Step 1: Project name
