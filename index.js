@@ -4,24 +4,42 @@ import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 
-
 const run = (cmd, cwd = process.cwd()) => {
   console.log(`\n📦 Running: ${cmd}`);
-  execSync(cmd, { stdio: "inherit", cwd });
+  try {
+    execSync(cmd, { stdio: "inherit", cwd });
+  } catch (error) {
+    console.error(`❌ Command failed: ${cmd}`);
+    console.error(`Error: ${error.message}`);
+    throw error;
+  }
 };
-
 
 (async () => {
   try {
     console.log("⚡ React Help Me - Skip the Setup, Start Building!");
     console.log("🔥 Your React project, configured perfectly, in under 60 seconds\n");
 
-
     // Step 1: Project name
     const { projectName } = await inquirer.prompt([
-      { type: "input", name: "projectName", message: "Enter project name:" },
+      { 
+        type: "input", 
+        name: "projectName", 
+        message: "Enter project name:",
+        validate: (input) => {
+          if (!input) return "Project name is required!";
+          if (input.match(/[^a-zA-Z0-9-_]/)) return "Project name should only contain letters, numbers, hyphens, and underscores";
+          return true;
+        }
+      },
     ]);
 
+    // Check if directory already exists
+    const projectPath = path.join(process.cwd(), projectName);
+    if (fs.existsSync(projectPath)) {
+      console.error(`❌ Directory '${projectName}' already exists!`);
+      process.exit(1);
+    }
 
     // Step 2: Language choice
     const { language } = await inquirer.prompt([
@@ -33,11 +51,8 @@ const run = (cmd, cwd = process.cwd()) => {
       },
     ]);
 
-
-    // Define file extensions
     const fileExtension = language === "TypeScript" ? "tsx" : "jsx";
     const configExtension = language === "TypeScript" ? "ts" : "js";
-
 
     // Step 3: CSS framework
     const { cssFramework } = await inquirer.prompt([
@@ -49,7 +64,6 @@ const run = (cmd, cwd = process.cwd()) => {
       },
     ]);
 
-
     // Step 4: Routing setup
     const { useRouting } = await inquirer.prompt([
       {
@@ -59,7 +73,6 @@ const run = (cmd, cwd = process.cwd()) => {
         default: false,
       },
     ]);
-
 
     // Step 5: Optional packages
     const { packages } = await inquirer.prompt([
@@ -78,7 +91,6 @@ const run = (cmd, cwd = process.cwd()) => {
       },
     ]);
 
-
     // Step 6: PWA setup
     const { usePWA } = await inquirer.prompt([
       {
@@ -89,531 +101,366 @@ const run = (cmd, cwd = process.cwd()) => {
       },
     ]);
 
+    console.log("\n🚀 Creating your React project...\n");
 
-    // Step 7: Create project
-    const projectPath = path.join(process.cwd(), projectName);
-    const template = language === "TypeScript" ? "react-ts" : "react";
-    run(`npm create vite@latest ${projectName} -- --template ${template}`);
+    // Create project directory manually instead of using npm create vite
+    console.log("📁 Creating project structure...");
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.mkdirSync(path.join(projectPath, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(projectPath, 'public'), { recursive: true });
 
-
-    // Remove default boilerplate files (if they exist)
-    const filesToRemove = [
-      `src/App.${fileExtension}`,
-      "src/index.css",
-      "public/vite.svg",
-      "src/assets/react.svg",
-    ];
-
-
-    filesToRemove.forEach((file) => {
-      const filePath = path.join(projectPath, file);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (e) {
-          // ignore
-        }
+    // Create package.json
+    const packageJson = {
+      name: projectName,
+      private: true,
+      version: "0.0.0",
+      type: "module",
+      scripts: {
+        dev: "vite",
+        build: "vite build",
+        lint: "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+        preview: "vite preview"
+      },
+      dependencies: {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+      },
+      devDependencies: {
+        "@types/react": "^18.2.43",
+        "@types/react-dom": "^18.2.17",
+        "@vitejs/plugin-react": "^4.2.1",
+        "eslint": "^8.55.0",
+        "eslint-plugin-react-hooks": "^4.6.0",
+        "eslint-plugin-react-refresh": "^0.4.5",
+        "typescript": "^5.2.2",
+        "vite": "^5.0.8"
       }
-    });
+    };
 
+    // Remove TypeScript dependencies if not using TypeScript
+    if (language === "JavaScript") {
+      delete packageJson.devDependencies["@types/react"];
+      delete packageJson.devDependencies["@types/react-dom"];
+      delete packageJson.devDependencies["typescript"];
+    }
 
-    // Create minimal index.css for non-Tailwind setups
-    if (cssFramework !== "Tailwind CSS") {
+    fs.writeFileSync(
+      path.join(projectPath, 'package.json'),
+      JSON.stringify(packageJson, null, 2)
+    );
+
+    // Create index.html
+    const indexHtmlContent = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${projectName}</title>
+    ${cssFramework === "Bootstrap (CDN)" ? '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">' : ''}
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.${configExtension}x"></script>
+  </body>
+</html>`;
+
+    fs.writeFileSync(path.join(projectPath, 'index.html'), indexHtmlContent);
+
+    // Create Vite config
+    const viteConfigContent = `import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react()],
+})`;
+
+    fs.writeFileSync(
+      path.join(projectPath, `vite.config.${configExtension}`),
+      viteConfigContent
+    );
+
+    // Create main file
+    const mainContent = `import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.${fileExtension}'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)`;
+
+    fs.writeFileSync(
+      path.join(projectPath, `src/main.${configExtension}x`),
+      mainContent
+    );
+
+    // Create TypeScript config if using TypeScript
+    if (language === "TypeScript") {
+      const tsConfigContent = {
+        "compilerOptions": {
+          "target": "ES2020",
+          "useDefineForClassFields": true,
+          "lib": ["ES2020", "DOM", "DOM.Iterable"],
+          "module": "ESNext",
+          "skipLibCheck": true,
+          "moduleResolution": "bundler",
+          "allowImportingTsExtensions": true,
+          "resolveJsonModule": true,
+          "isolatedModules": true,
+          "noEmit": true,
+          "jsx": "react-jsx",
+          "strict": true,
+          "noUnusedLocals": true,
+          "noUnusedParameters": true,
+          "noFallthroughCasesInSwitch": true
+        },
+        "include": ["src"],
+        "references": [{ "path": "./tsconfig.node.json" }]
+      };
+
       fs.writeFileSync(
-        path.join(projectPath, "src/index.css"),
-        `body { margin: 0; padding: 0; box-sizing: border-box; }`
+        path.join(projectPath, 'tsconfig.json'),
+        JSON.stringify(tsConfigContent, null, 2)
+      );
+
+      const tsConfigNodeContent = {
+        "compilerOptions": {
+          "composite": true,
+          "skipLibCheck": true,
+          "module": "ESNext",
+          "moduleResolution": "bundler",
+          "allowSyntheticDefaultImports": true
+        },
+        "include": ["vite.config.ts"]
+      };
+
+      fs.writeFileSync(
+        path.join(projectPath, 'tsconfig.node.json'),
+        JSON.stringify(tsConfigNodeContent, null, 2)
       );
     }
 
-    
+    console.log("✅ Base project created successfully!");
 
-    // Step 8: Install CSS framework & write configs
+    // Minimal index.css if not using Tailwind
+    if (cssFramework !== "Tailwind CSS") {
+      fs.writeFileSync(
+        path.join(projectPath, "src/index.css"),
+        `body { 
+  margin: 0; 
+  padding: 0; 
+  box-sizing: border-box; 
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}`
+      );
+    }
+
+    // Step 7: CSS framework installs/configs
     if (cssFramework === "Tailwind CSS") {
+      console.log("📦 Installing Tailwind CSS...");
       run(`npm install tailwindcss @tailwindcss/vite`, projectPath);
 
-
-      // Use the correct config file extension
-      const viteConfigPath = path.join(projectPath, `vite.config.${configExtension}`);
-      
-      // Check if the config file exists before trying to read it
-      if (!fs.existsSync(viteConfigPath)) {
-        // If it doesn't exist, create it with basic configuration
-        fs.writeFileSync(
-          viteConfigPath,
-          `import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-
-export default defineConfig({
-  plugins: [react()],
-})`
-        );
-      }
-
-
-      let viteConfig = fs.readFileSync(viteConfigPath, "utf-8");
-      
-      // Add import for tailwindcss
+      let viteConfig = fs.readFileSync(path.join(projectPath, `vite.config.${configExtension}`), "utf-8");
       viteConfig = `import tailwindcss from '@tailwindcss/vite'\n` + viteConfig;
-      
-      // Add tailwindcss to plugins array
       viteConfig = viteConfig.replace(
-        /plugins:\s*\[/,
-        "plugins: [\n    tailwindcss(),"
+        /plugins:\s*\[([^\]]*)\]/,
+        "plugins: [$1, tailwindcss()]"
       );
-      
-      fs.writeFileSync(viteConfigPath, viteConfig);
+      fs.writeFileSync(path.join(projectPath, `vite.config.${configExtension}`), viteConfig);
 
-
-      // Update index.css with Tailwind import
       fs.writeFileSync(
         path.join(projectPath, "src", "index.css"),
         `@import "tailwindcss";\n`
       );
-
-
-      // Ensure main file imports index.css
-      const mainFile = path.join(projectPath, `src/main.${fileExtension}`);
-      let mainContent = fs.readFileSync(mainFile, "utf-8");
-      
-      // Remove any existing import of index.css
-      mainContent = mainContent.replace(/import\s+['"]\.\/index\.css['"];?/g, "");
-      
-      // Add import for index.css if not already present
-      if (!mainContent.includes(`import './index.css'`)) {
-        mainContent = `import './index.css';\n` + mainContent;
-      }
-      
-      fs.writeFileSync(mainFile, mainContent);
+      console.log("✅ Tailwind CSS configured!");
     }
-
-
-    if (cssFramework === "Bootstrap (CDN)") {
-      // Overwrite the root index.html to add CDN bootstrap and ensure title matches projectName
-      fs.writeFileSync(
-        path.join(projectPath, "index.html"),
-        `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${projectName}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.${fileExtension}"></script>
-  </body>
-</html>`
-      );
-    }
-
 
     if (cssFramework === "React Bootstrap") {
+      console.log("📦 Installing React Bootstrap...");
       run("npm install react-bootstrap bootstrap", projectPath);
+      console.log("✅ React Bootstrap installed!");
     }
 
-
-    // Step 9: Install routing if selected
+    // Step 8: Routing
     if (useRouting) {
+      console.log("📦 Installing React Router...");
       run("npm install react-router-dom", projectPath);
+      console.log("✅ React Router installed!");
     }
 
-
-    // Step 10: Install optional packages
+    // Step 9: Optional packages
     if (packages.length > 0) {
+      console.log(`📦 Installing optional packages: ${packages.join(", ")}...`);
       run(`npm install ${packages.join(" ")}`, projectPath);
+      console.log("✅ Optional packages installed!");
     }
 
-
-    // Step 11: Axios setup
+    // Step 10: Axios setup
     if (packages.includes("axios")) {
       const axiosExt = language === "TypeScript" ? "ts" : "js";
       const utilsPath = path.join(projectPath, "src/utils");
       fs.mkdirSync(utilsPath, { recursive: true });
+      const axiosContent = language === "TypeScript" 
+        ? `import axios from "axios";
 
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000",
+  headers: { "Content-Type": "application/json" },
+  timeout: 10000,
+});
 
-      // Basic axios file; TypeScript users may want to expand types later
-      const axiosContent =
-        `import axios from "axios";
-
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = \`Bearer \${token}\`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);`
+        : `import axios from "axios";
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000",
   headers: { "Content-Type": "application/json" },
   timeout: 10000,
 });`;
-
-
-      fs.writeFileSync(
-        path.join(utilsPath, `axios.${axiosExt}`),
-        axiosContent
-      );
+      fs.writeFileSync(path.join(utilsPath, `axios.${axiosExt}`), axiosContent);
+      console.log("✅ Axios configuration created!");
     }
 
-
-    // Step 12: Create minimal folder structure
+    // Step 11: Folder structure
     const folders = ["src/components", "src/hooks", "src/utils", "src/assets"];
-    if (useRouting) {
-      folders.push("src/pages");
-    }
-    folders.forEach((folder) =>
-      fs.mkdirSync(path.join(projectPath, folder), { recursive: true })
-    );
+    if (useRouting) folders.push("src/pages");
+    folders.forEach((folder) => {
+      fs.mkdirSync(path.join(projectPath, folder), { recursive: true });
+      console.log(`📁 Created ${folder}/`);
+    });
 
-
-    // Step 13: Create routing components if routing is enabled
+    // Step 12: Example pages (routing only)
     if (useRouting) {
-      // Create Home page
-      const homeContent = `${cssFramework === "Tailwind CSS" ? `export default function Home() {
+      const homeContent = `export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <h1 className="text-4xl font-bold text-blue-600 mb-4">
-        Home Page
-      </h1>
-      <p className="text-lg text-gray-700">
-        Welcome to ${projectName}
-      </p>
-    </div>
-  );
-}` : cssFramework === "Bootstrap (CDN)" || cssFramework === "React Bootstrap" ? `export default function Home() {
-  return (
-    <div className="min-vh-100 d-flex flex-column align-items-center justify-content-center bg-light">
-      <h1 className="display-4 text-primary mb-4">
-        Home Page
-      </h1>
-      <p className="lead text-secondary">
-        Welcome to ${projectName}
-      </p>
-    </div>
-  );
-}` : `export default function Home() {
-  return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      backgroundColor: '#f0f0f0',
-      padding: '2rem'
-    }}>
-      <h1 style={{ color: 'blue', marginBottom: '1rem' }}>
-        Home Page
-      </h1>
+    <div className="${cssFramework === "Tailwind CSS"
+      ? "min-h-screen flex flex-col items-center justify-center bg-gray-100"
+      : cssFramework.includes("Bootstrap")
+      ? "min-vh-100 d-flex flex-column align-items-center justify-content-center bg-light"
+      : ""}">
+      <h1>Home Page</h1>
       <p>Welcome to ${projectName}</p>
     </div>
   );
-}`}`;
-
-      // Create About page
-      const aboutContent = `${cssFramework === "Tailwind CSS" ? `export default function About() {
+}`;
+      const aboutContent = `export default function About() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <h1 className="text-4xl font-bold text-green-600 mb-4">
-        About Page
-      </h1>
-      <p className="text-lg text-gray-700">
-        This is the about page for ${projectName}
-      </p>
-    </div>
-  );
-}` : cssFramework === "Bootstrap (CDN)" || cssFramework === "React Bootstrap" ? `export default function About() {
-  return (
-    <div className="min-vh-100 d-flex flex-column align-items-center justify-content-center bg-light">
-      <h1 className="display-4 text-success mb-4">
-        About Page
-      </h1>
-      <p className="lead text-secondary">
-        This is the about page for ${projectName}
-      </p>
-    </div>
-  );
-}` : `export default function About() {
-  return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      backgroundColor: '#f0f0f0',
-      padding: '2rem'
-    }}>
-      <h1 style={{ color: 'green', marginBottom: '1rem' }}>
-        About Page
-      </h1>
+    <div className="${cssFramework === "Tailwind CSS"
+      ? "min-h-screen flex flex-col items-center justify-center bg-gray-100"
+      : cssFramework.includes("Bootstrap")
+      ? "min-vh-100 d-flex flex-column align-items-center justify-content-center bg-light"
+      : ""}">
+      <h1>About Page</h1>
       <p>This is the about page for ${projectName}</p>
     </div>
   );
-}`}`;
-
-      fs.writeFileSync(
-        path.join(projectPath, `src/pages/Home.${fileExtension}`),
-        homeContent
-      );
-
-      fs.writeFileSync(
-        path.join(projectPath, `src/pages/About.${fileExtension}`),
-        aboutContent
-      );
+}`;
+      fs.writeFileSync(path.join(projectPath, `src/pages/Home.${fileExtension}`), homeContent);
+      fs.writeFileSync(path.join(projectPath, `src/pages/About.${fileExtension}`), aboutContent);
+      console.log("✅ Route components created!");
     }
 
+    // Step 13: Create new App component
+    console.log("📝 Creating App component...");
 
-    // Step 14: Create App component (depending on CSS framework and routing)
-    const getAppContent = () => {
-      if (useRouting) {
-        // App with routing
-        const routingImports = `import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import Home from './pages/Home';
-import About from './pages/About';`;
+    const appContent = language === "TypeScript" 
+      ? `import React from 'react'${useRouting ? '\nimport { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom"' : ''}${cssFramework === "React Bootstrap" ? '\nimport "bootstrap/dist/css/bootstrap.min.css";' : ''}${useRouting ? `\nimport Home from "./pages/Home"\nimport About from "./pages/About"` : ''}
 
-        switch (cssFramework) {
-          case "Tailwind CSS":
-            return `${routingImports}
-
-export default function App() {
+function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-100">
-        <nav className="bg-white shadow-lg">
-          <div className="max-w-6xl mx-auto px-4">
-            <div className="flex justify-between">
-              <div className="flex space-x-7">
-                <div>
-                  <Link to="/" className="flex items-center py-4 px-2">
-                    <span className="font-semibold text-gray-500 text-lg">${projectName}</span>
-                  </Link>
-                </div>
-                <div className="hidden md:flex items-center space-x-1">
-                  <Link to="/" className="py-4 px-2 text-gray-500 font-semibold hover:text-blue-500 transition duration-300">Home</Link>
-                  <Link to="/about" className="py-4 px-2 text-gray-500 font-semibold hover:text-blue-500 transition duration-300">About</Link>
-                </div>
-              </div>
-            </div>
+    <div className="${cssFramework === "Tailwind CSS" ? "min-h-screen bg-gray-100" : cssFramework.includes("Bootstrap") ? "min-vh-100 bg-light" : ""}">
+      ${useRouting ? `<Router>
+        <nav className="${cssFramework === "Tailwind CSS" ? "bg-white shadow-sm py-4" : cssFramework.includes("Bootstrap") ? "navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3" : ""}">
+          <div className="${cssFramework === "Tailwind CSS" ? "container mx-auto flex gap-4" : cssFramework.includes("Bootstrap") ? "container" : ""}">
+            <Link to="/" className="${cssFramework === "Tailwind CSS" ? "text-blue-600 hover:text-blue-800 font-medium" : cssFramework.includes("Bootstrap") ? "navbar-brand text-primary fw-bold" : ""}">Home</Link>
+            <Link to="/about" className="${cssFramework === "Tailwind CSS" ? "text-blue-600 hover:text-blue-800 font-medium" : cssFramework.includes("Bootstrap") ? "nav-link text-primary" : ""}">About</Link>
           </div>
         </nav>
+        
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
         </Routes>
-      </div>
-    </Router>
+      </Router>` : `<div className="${cssFramework === "Tailwind CSS" ? "min-h-screen flex items-center justify-center" : cssFramework.includes("Bootstrap") ? "min-vh-100 d-flex align-items-center justify-content-center" : ""}">
+        <h1 className="${cssFramework === "Tailwind CSS" ? "text-4xl font-bold text-gray-800" : cssFramework.includes("Bootstrap") ? "display-4 text-dark" : ""}">Welcome to ${projectName}</h1>
+      </div>`}
+    </div>
   );
-}`;
-          case "Bootstrap (CDN)":
-          case "React Bootstrap":
-            return `${cssFramework === "React Bootstrap" ? "import 'bootstrap/dist/css/bootstrap.min.css';\n" : ""}${routingImports}
+}
 
-export default function App() {
+export default App;`
+      : `import React from 'react'${useRouting ? '\nimport { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom"' : ''}${cssFramework === "React Bootstrap" ? '\nimport "bootstrap/dist/css/bootstrap.min.css";' : ''}${useRouting ? `\nimport Home from "./pages/Home"\nimport About from "./pages/About"` : ''}
+
+function App() {
   return (
-    <Router>
-      <div className="min-vh-100">
-        <nav className="navbar navbar-expand-lg navbar-light bg-light">
-          <div className="container">
-            <Link className="navbar-brand" to="/">${projectName}</Link>
-            <div className="navbar-nav">
-              <Link className="nav-link" to="/">Home</Link>
-              <Link className="nav-link" to="/about">About</Link>
-            </div>
+    <div className="${cssFramework === "Tailwind CSS" ? "min-h-screen bg-gray-100" : cssFramework.includes("Bootstrap") ? "min-vh-100 bg-light" : ""}">
+      ${useRouting ? `<Router>
+        <nav className="${cssFramework === "Tailwind CSS" ? "bg-white shadow-sm py-4" : cssFramework.includes("Bootstrap") ? "navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3" : ""}">
+          <div className="${cssFramework === "Tailwind CSS" ? "container mx-auto flex gap-4" : cssFramework.includes("Bootstrap") ? "container" : ""}">
+            <Link to="/" className="${cssFramework === "Tailwind CSS" ? "text-blue-600 hover:text-blue-800 font-medium" : cssFramework.includes("Bootstrap") ? "navbar-brand text-primary fw-bold" : ""}">Home</Link>
+            <Link to="/about" className="${cssFramework === "Tailwind CSS" ? "text-blue-600 hover:text-blue-800 font-medium" : cssFramework.includes("Bootstrap") ? "nav-link text-primary" : ""}">About</Link>
           </div>
         </nav>
+        
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
         </Routes>
-      </div>
-    </Router>
-  );
-}`;
-          default:
-            return `${routingImports}
-
-export default function App() {
-  return (
-    <Router>
-      <div style={{ minHeight: '100vh' }}>
-        <nav style={{ 
-          backgroundColor: '#f8f9fa', 
-          padding: '1rem', 
-          borderBottom: '1px solid #dee2e6',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <Link to="/" style={{ 
-            textDecoration: 'none', 
-            fontSize: '1.25rem', 
-            fontWeight: 'bold',
-            color: '#495057'
-          }}>${projectName}</Link>
-          <div>
-            <Link to="/" style={{ 
-              marginRight: '1rem', 
-              textDecoration: 'none',
-              color: '#6c757d'
-            }}>Home</Link>
-            <Link to="/about" style={{ 
-              textDecoration: 'none',
-              color: '#6c757d'
-            }}>About</Link>
-          </div>
-        </nav>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-        </Routes>
-      </div>
-    </Router>
-  );
-}`;
-        }
-      } else {
-        // App without routing (original)
-        switch (cssFramework) {
-          case "Tailwind CSS":
-            return `export default function App() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <h1 className="text-4xl font-bold text-blue-600 mb-4">
-        Welcome to React Boilerplate
-      </h1>
-      <p className="text-lg text-gray-700">
-        Project: ${projectName}
-      </p>
-      <p className="text-lg text-gray-700">
-        CSS Framework: ${cssFramework}
-      </p>
+      </Router>` : `<div className="${cssFramework === "Tailwind CSS" ? "min-h-screen flex items-center justify-center" : cssFramework.includes("Bootstrap") ? "min-vh-100 d-flex align-items-center justify-content-center" : ""}">
+        <h1 className="${cssFramework === "Tailwind CSS" ? "text-4xl font-bold text-gray-800" : cssFramework.includes("Bootstrap") ? "display-4 text-dark" : ""}">Welcome to ${projectName}</h1>
+      </div>`}
     </div>
   );
-}`;
-          case "Bootstrap (CDN)":
-            return `export default function App() {
-  return (
-    <div className="min-vh-100 d-flex flex-column align-items-center justify-content-center bg-light">
-      <h1 className="display-4 text-primary mb-4">
-        Welcome to React Boilerplate
-      </h1>
-      <p className="lead text-secondary">
-        Project: ${projectName}
-      </p>
-      <p className="lead text-secondary">
-        CSS Framework: ${cssFramework}
-      </p>
-    </div>
-  );
-}`;
-          case "React Bootstrap":
-            return `import 'bootstrap/dist/css/bootstrap.min.css';
+}
 
-export default function App() {
-  return (
-    <div className="min-vh-100 d-flex flex-column align-items-center justify-content-center bg-light">
-      <h1 className="display-4 text-primary mb-4">
-        Welcome to React Boilerplate
-      </h1>
-      <p className="lead text-secondary">
-        Project: ${projectName}
-      </p>
-      <p className="lead text-secondary">
-        CSS Framework: ${cssFramework}
-      </p>
-    </div>
-  );
-}`;
-          default:
-            return `export default function App() {
-  return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      backgroundColor: '#f0f0f0',
-      padding: '2rem'
-    }}>
-      <h1 style={{ color: 'blue', marginBottom: '1rem' }}>
-        Welcome to React Boilerplate
-      </h1>
-      <p>Project: ${projectName}</p>
-      <p>CSS Framework: ${cssFramework}</p>
-    </div>
-  );
-}`;
-        }
-      }
-    };
+export default App;`;
 
+    fs.writeFileSync(path.join(projectPath, `src/App.${fileExtension}`), appContent);
+    console.log("✅ App component created!");
 
-    // Create App component
-    fs.writeFileSync(
-      path.join(projectPath, `src/App.${fileExtension}`),
-      getAppContent()
-    );
+    console.log(`\n🎉 Project ${projectName} created successfully!`);
 
+    // Final npm install
+    console.log("\n📦 Installing dependencies...");
+    run("npm install", projectPath);
 
-    // Create main entry file
-    fs.writeFileSync(
-      path.join(projectPath, `src/main.${fileExtension}`),
-      `import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css';
+    // Ask to start dev server
+    const { startNow } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "startNow",
+        message: "Do you want to start the dev server now?",
+        default: false,
+      },
+    ]);
 
-
-const rootElement = document.getElementById('root');
-if (rootElement) {
-  const root = ReactDOM.createRoot(rootElement);
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-} else {
-  console.error('Failed to find the root element');
-}`
-    );
-
-
-    // Step 15: Setup PWA (optional)
-    if (usePWA) {
-      run("npm install vite-plugin-pwa", projectPath);
-
-
-      // Read the existing vite config
-      const viteConfigPath = path.join(projectPath, `vite.config.${configExtension}`);
-      let viteConfig = fs.readFileSync(viteConfigPath, "utf-8");
-      
-      // Add import for VitePWA
-      viteConfig = `import { VitePWA } from 'vite-plugin-pwa'\n` + viteConfig;
-      
-      // Add VitePWA to plugins array
-      if (viteConfig.includes('tailwindcss()')) {
-        // If tailwind is already in plugins
-        viteConfig = viteConfig.replace(
-          /plugins:\s*\[\s*tailwindcss\(\)/,
-          `plugins: [\n    tailwindcss(),\n    VitePWA({ \n      registerType: 'autoUpdate',\n      manifest: {\n        name: '${projectName}',\n        short_name: '${projectName}',\n        theme_color: '#ffffff',\n        icons: [\n          {\n            src: '/icon-192x192.png',\n            sizes: '192x192',\n            type: 'image/png'\n          },\n          {\n            src: '/icon-512x512.png',\n            sizes: '512x512',\n            type: 'image/png'\n          }\n        ]\n      }\n    })`
-        );
-      } else {
-        // If no tailwind
-        viteConfig = viteConfig.replace(
-          /plugins:\s*\[/,
-          `plugins: [\n    VitePWA({ \n      registerType: 'autoUpdate',\n      manifest: {\n        name: '${projectName}',\n        short_name: '${projectName}',\n        theme_color: '#ffffff',\n        icons: [\n          {\n            src: '/icon-192x192.png',\n            sizes: '192x192',\n            type: 'image/png'\n          },\n          {\n            src: '/icon-512x512.png',\n            sizes: '512x512',\n            type: 'image/png'\n          }\n        ]\n      }\n    })`
-        );
-      }
-      
-      fs.writeFileSync(viteConfigPath, viteConfig);
+    if (startNow) {
+      console.log("\n🚀 Starting dev server...");
+      run("npm run dev", projectPath);
+    } else {
+      console.log(`\n👉 Next steps:`);
+      console.log(`   cd ${projectName}`);
+      console.log(`   npm run dev`);
+      console.log(`\n🚀 Happy coding!`);
     }
 
-
-    console.log(`\n✅ Project ${projectName} created successfully!`);
-    if (useRouting) {
-      console.log(`🔄 Routing has been set up with Home and About pages`);
-    }
-    console.log(`\n👉 cd ${projectName} && npm install && npm run dev`);
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error("❌ Error creating project:", error.message);
     process.exit(1);
   }
 })();
